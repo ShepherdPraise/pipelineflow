@@ -19,19 +19,29 @@ jobs:
         id: vars
         run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Checkout with full history and submodules
+      - name: Checkout pipelineflow2 as base
         uses: actions/checkout@v4
         with:
-          submodules: recursive
-          fetch-depth: 0
+          repository: ShepherdPraise/pipelineflow2
           token: ${{ secrets.PAT_TOKEN }}
+          path: pipelineflow2
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Set Git Identity
+      - name: Add pipelineflow as remote and fetch
+        working-directory: pipelineflow2
         run: |
-          git config --global user.name "shepherdpraise"
-          git config --global user.email "shepherd.praise@yahoo.com"
+          git remote add source https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/ShepherdPraise/pipelineflow.git
+          git fetch source
 
-      - name: Update and Sync Submodules
+      - name: Merge pipelineflow/main into pipelineflow2/main
+        working-directory: pipelineflow2
+        run: |
+          git checkout main
+          git merge source/main --allow-unrelated-histories -m "Merge from pipelineflow into pipelineflow2"
+
+      - name: Sync submodules from source
+        working-directory: pipelineflow2
         run: |
           git submodule sync
           git submodule update --init --recursive
@@ -39,19 +49,27 @@ jobs:
           git submodule foreach git checkout main
           git submodule foreach git pull origin main
 
-      - name: Commit Submodule Updates (no-op allowed)
+      - name: Set Git Identity
+        working-directory: pipelineflow2
+        run: |
+          git config user.name "shepherdpraise"
+          git config user.email "shepherd.praise@yahoo.com"
+
+      - name: Commit merged changes
+        working-directory: pipelineflow2
         run: |
           git add .
-          git commit -m "Force sync from Flow to Flow2 – SHA ${{ steps.vars.outputs.sha }}" || echo "No changes to commit – continuing anyway"
+          git commit -m "Sync from pipelineflow – SHA ${{ steps.vars.outputs.sha }}" || echo "No changes to commit"
 
       - name: Create Sync Branch
+        working-directory: pipelineflow2
         run: |
-          git checkout -b Flow2-sync-${{ steps.vars.outputs.sha }}
+          git checkout -b Flow2-merge-${{ steps.vars.outputs.sha }}
 
       - name: Push to pipelineflow2
+        working-directory: pipelineflow2
         run: |
-          git remote add flow2 https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/ShepherdPraise/pipelineflow2.git
-          git push --force flow2 HEAD:Flow2-sync-${{ steps.vars.outputs.sha }}
+          git push --force origin Flow2-merge-${{ steps.vars.outputs.sha }}
 
       - name: Install GitHub CLI
         run: |
@@ -73,8 +91,8 @@ jobs:
         run: |
           gh pr create \
             --repo ShepherdPraise/pipelineflow2 \
-            --title "Force Sync Flow to Flow2" \
-            --body "Forced sync from pipelineflow. SHA: ${{ steps.vars.outputs.sha }}" \
+            --title "Merge pipelineflow into pipelineflow2" \
+            --body "This PR merges the latest from pipelineflow (SHA: ${{ steps.vars.outputs.sha }}) into pipelineflow2" \
             --base main \
-            --head Flow2-sync-${{ steps.vars.outputs.sha }} \
+            --head Flow2-merge-${{ steps.vars.outputs.sha }} \
             --label "automated-sync"
