@@ -61,11 +61,18 @@ jobs:
           git submodule foreach --quiet 'git rev-parse --abbrev-ref HEAD || exit 1'
           echo "✅ Submodules OK."
 
-      - name: Install dependencies
+      - name: Install dependencies (CI-safe)
         working-directory: flow2
         run: |
-          echo "📦 Installing React dependencies..."
-          npm install --legacy-peer-deps
+          echo "📦 Installing dependencies with npm ci..."
+          npm ci
+
+      - name: Debug ESLint binary (optional)
+        working-directory: flow2
+        run: |
+          echo "🔍 Checking ESLint binary..."
+          ls -la node_modules/.bin | grep eslint || echo "❌ ESLint binary missing"
+          grep '"eslint"' package.json || echo "❌ eslint not listed in package.json"
 
       - name: Run ESLint checks
         working-directory: flow2
