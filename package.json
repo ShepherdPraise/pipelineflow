@@ -1,0 +1,6 @@
+"scripts": {
+  "test": "react-scripts test",
+  "build": "react-scripts build",
+  "start": "react-scripts start",
+  "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+}
