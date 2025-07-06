@@ -1,4 +1,4 @@
-name: Sync Flow to Flow2
+name: Merge pipelineflow2 from pipelineflow (Preserve History, Sync Submodules)
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
     types: [closed]
 
 jobs:
-  sync-to-flow2:
+  overwrite-sync:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
 
@@ -19,62 +19,84 @@ jobs:
         id: vars
         run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
-      - name: Checkout with full history and submodules
+      - name: Checkout pipelineflow2
         uses: actions/checkout@v4
         with:
-          submodules: recursive
-          fetch-depth: 0
+          repository: ShepherdPraise/pipelineflow2
           token: ${{ secrets.PAT_TOKEN }}
+          path: flow2
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Checkout pipelineflow
+        uses: actions/checkout@v4
+        with:
+          repository: ShepherdPraise/pipelineflow
+          token: ${{ secrets.PAT_TOKEN }}
+          path: flow1
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Create sync branch
+        working-directory: flow2
+        run: |
+          git checkout -b Flow2-overwrite-${{ steps.vars.outputs.sha }}
+
+      - name: Replace pipelineflow2 contents with pipelineflow (code + submodules)
+        run: |
+          rsync -av --delete --exclude='.git' flow1/ flow2/
+        # We are copying all files and updated submodule pointers (the .git dirs stay safe)
 
       - name: Set Git Identity
+        working-directory: flow2
         run: |
-          git config --global user.name "shepherdpraise"
-          git config --global user.email "shepherd.praise@yahoo.com"
+          git config user.name "shepherdpraise"
+          git config user.email "shepherd.praise@yahoo.com"
 
-      - name: Update and Sync Submodules
-        run: |
-          git submodule sync
-          git submodule update --init --recursive
-          git submodule foreach git fetch origin
-          git submodule foreach git checkout main
-          git submodule foreach git pull origin main
-
-      - name: Commit Submodule Updates (no-op allowed)
+      - name: Stage and Commit (including submodules)
+        working-directory: flow2
         run: |
           git add .
-          git commit -m "Force sync from Flow to Flow2 – SHA ${{ steps.vars.outputs.sha }}" || echo "No changes to commit – continuing anyway"
+          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Sync pipelineflow code and submodules – SHA ${{ steps.vars.outputs.sha }}"
 
-      - name: Create Sync Branch
+      - name: Push new sync branch
+        working-directory: flow2
         run: |
-          git checkout -b Flow2-sync-${{ steps.vars.outputs.sha }}
+          git push origin Flow2-overwrite-${{ steps.vars.outputs.sha }}
 
-      - name: Push to pipelineflow2
+      - name: Check if branch has changes
+        id: check_diff
+        working-directory: flow2
         run: |
-          git remote add flow2 https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/ShepherdPraise/pipelineflow2.git
-          git push --force flow2 HEAD:Flow2-sync-${{ steps.vars.outputs.sha }}
+          git fetch origin main
+          git diff --quiet origin/main...HEAD && echo "has_diff=false" >> $GITHUB_OUTPUT || echo "has_diff=true" >> $GITHUB_OUTPUT
 
       - name: Install GitHub CLI
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
-          sudo apt update
-          sudo apt install -y gh
+          sudo apt update && sudo apt install -y gh
 
       - name: Authenticate GitHub CLI
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
 
-      - name: Ensure PR label exists
+      - name: Ensure label exists
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           gh label create "automated-sync" \
             --repo ShepherdPraise/pipelineflow2 \
             --color "0366d6" \
-            --description "PRs created by pipelineflow sync job" || echo "✅ Label already exists"
+            --description "PRs created by sync job" || echo "Label already exists"
 
-      - name: Create PR in pipelineflow2
+      - name: Create Pull Request
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           gh pr create \
             --repo ShepherdPraise/pipelineflow2 \
-            --title "Force Sync Flow to Flow2" \
-            --body "Forced sync from pipelineflow. SHA: ${{ steps.vars.outputs.sha }}" \
+            --title "Overwrite pipelineflow2 with pipelineflow code + submodules" \
+            --body "This PR replaces the code and submodule references in pipelineflow2 with those from pipelineflow (SHA: ${{ steps.vars.outputs.sha }})." \
             --base main \
-            --head Flow2-sync-${{ steps.vars.outputs.sha }} \
+            --head Flow2-overwrite-${{ steps.vars.outputs.sha }} \
             --label "automated-sync"
+
