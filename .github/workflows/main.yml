@@ -1,4 +1,4 @@
-name: Overwrite Flow2 Codebase from Flow
+name: Overwrite pipelineflow2 from pipelineflow (Preserve History, Sync Submodules)
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
     types: [closed]
 
 jobs:
-  force-sync:
+  overwrite-sync:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
 
@@ -28,19 +28,24 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Pull pipelineflow code
+      - name: Checkout pipelineflow
         uses: actions/checkout@v4
         with:
           repository: ShepherdPraise/pipelineflow
           token: ${{ secrets.PAT_TOKEN }}
           path: flow1
-          fetch-depth: 1
+          fetch-depth: 0
           submodules: recursive
 
-      - name: Replace flow2 contents with flow1
+      - name: Create sync branch
+        working-directory: flow2
         run: |
-          rsync -av --delete flow1/ flow2/
-        # ⚠️ This deletes everything in flow2 not in flow1 (except the .git dir)
+          git checkout -b Flow2-overwrite-${{ steps.vars.outputs.sha }}
+
+      - name: Replace pipelineflow2 contents with pipelineflow (code + submodules)
+        run: |
+          rsync -av --delete --exclude='.git' flow1/ flow2/
+        # We are copying all files and updated submodule pointers (the .git dirs stay safe)
 
       - name: Set Git Identity
         working-directory: flow2
@@ -48,31 +53,36 @@ jobs:
           git config user.name "shepherdpraise"
           git config user.email "shepherd.praise@yahoo.com"
 
-      - name: Commit changes in flow2
+      - name: Stage and Commit (including submodules)
         working-directory: flow2
         run: |
           git add .
-          git commit -m "Sync code from pipelineflow – SHA ${{ steps.vars.outputs.sha }}" || echo "No changes to commit"
+          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Sync pipelineflow code and submodules – SHA ${{ steps.vars.outputs.sha }}"
 
-      - name: Create sync branch
+      - name: Push new sync branch
         working-directory: flow2
         run: |
-          git checkout -b Flow2-overwrite-${{ steps.vars.outputs.sha }}
+          git push origin Flow2-overwrite-${{ steps.vars.outputs.sha }}
 
-      - name: Push branch to pipelineflow2
+      - name: Check if branch has changes
+        id: check_diff
         working-directory: flow2
         run: |
-          git push --force origin Flow2-overwrite-${{ steps.vars.outputs.sha }}
+          git fetch origin main
+          git diff --quiet origin/main...HEAD && echo "has_diff=false" >> $GITHUB_OUTPUT || echo "has_diff=true" >> $GITHUB_OUTPUT
 
       - name: Install GitHub CLI
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           sudo apt update && sudo apt install -y gh
 
       - name: Authenticate GitHub CLI
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
 
       - name: Ensure label exists
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           gh label create "automated-sync" \
             --repo ShepherdPraise/pipelineflow2 \
@@ -80,11 +90,12 @@ jobs:
             --description "PRs created by sync job" || echo "Label already exists"
 
       - name: Create Pull Request
+        if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           gh pr create \
             --repo ShepherdPraise/pipelineflow2 \
-            --title "Overwrite pipelineflow2 with pipelineflow code" \
-            --body "This PR forcefully replaces the code in pipelineflow2 with that from pipelineflow (SHA: ${{ steps.vars.outputs.sha }})." \
+            --title "Overwrite pipelineflow2 with pipelineflow code + submodules" \
+            --body "This PR replaces the code and submodule references in pipelineflow2 with those from pipelineflow (SHA: ${{ steps.vars.outputs.sha }})." \
             --base main \
             --head Flow2-overwrite-${{ steps.vars.outputs.sha }} \
             --label "automated-sync"
