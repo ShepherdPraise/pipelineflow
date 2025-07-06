@@ -1,4 +1,4 @@
-name: Overwrite pipelineflow2 from pipelineflow (Preserve History, Sync Submodules)
+name: Overwrite pipelineflow2 from pipelineflow (Preserve History, Sync Submodules, Test & Lint)
 
 on:
   push:
@@ -42,29 +42,67 @@ jobs:
         run: |
           git checkout -b Flow2-overwrite-${{ steps.vars.outputs.sha }}
 
-      - name: Replace pipelineflow2 contents with pipelineflow (code + submodules)
+      - name: Replace pipelineflow2 contents with pipelineflow
         run: |
           rsync -av --delete --exclude='.git' flow1/ flow2/
-        # We are copying all files and updated submodule pointers (the .git dirs stay safe)
 
-      - name: Set Git Identity
+      - name: File + submodule sanity checks
+        working-directory: flow2
+        run: |
+          echo "🔍 Checking for essential files..."
+          required=("package.json" "src" "public")
+          for item in "${required[@]}"; do
+            if [[ ! -e "$item" ]]; then
+              echo "❌ Missing required item: $item"
+              exit 1
+            fi
+          done
+          echo "✅ Files look good."
+          git submodule foreach --quiet 'git rev-parse --abbrev-ref HEAD || exit 1'
+          echo "✅ Submodules OK."
+
+      - name: Install dependencies
+        working-directory: flow2
+        run: |
+          echo "📦 Installing React dependencies..."
+          npm install --legacy-peer-deps
+
+      - name: Run ESLint checks
+        working-directory: flow2
+        run: |
+          echo "🧼 Running ESLint..."
+          npx eslint . --ext .js,.jsx,.ts,.tsx
+
+      - name: Build React project
+        working-directory: flow2
+        run: |
+          echo "🏗️ Running build..."
+          npm run build
+
+      - name: Run React tests
+        working-directory: flow2
+        run: |
+          echo "🧪 Running tests..."
+          npm test -- --watchAll=false
+
+      - name: Set Git identity
         working-directory: flow2
         run: |
           git config user.name "shepherdpraise"
           git config user.email "shepherd.praise@yahoo.com"
 
-      - name: Stage and Commit (including submodules)
+      - name: Commit changes (if any)
         working-directory: flow2
         run: |
           git add .
-          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Sync pipelineflow code and submodules – SHA ${{ steps.vars.outputs.sha }}"
+          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Sync pipelineflow code + submodules – SHA ${{ steps.vars.outputs.sha }}"
 
-      - name: Push new sync branch
+      - name: Push sync branch
         working-directory: flow2
         run: |
           git push origin Flow2-overwrite-${{ steps.vars.outputs.sha }}
 
-      - name: Check if branch has changes
+      - name: Check if branch has differences
         id: check_diff
         working-directory: flow2
         run: |
@@ -81,21 +119,21 @@ jobs:
         run: |
           echo "${{ secrets.PAT_TOKEN }}" | gh auth login --with-token
 
-      - name: Ensure label exists
+      - name: Ensure PR label exists
         if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           gh label create "automated-sync" \
             --repo ShepherdPraise/pipelineflow2 \
             --color "0366d6" \
-            --description "PRs created by sync job" || echo "Label already exists"
+            --description "PRs created by sync job" || echo "✅ Label already exists"
 
       - name: Create Pull Request
         if: steps.check_diff.outputs.has_diff == 'true'
         run: |
           gh pr create \
             --repo ShepherdPraise/pipelineflow2 \
-            --title "Overwrite pipelineflow2 with pipelineflow code + submodules" \
-            --body "This PR replaces the code and submodule references in pipelineflow2 with those from pipelineflow (SHA: ${{ steps.vars.outputs.sha }})." \
+            --title "Overwrite with pipelineflow code + submodules – SHA ${{ steps.vars.outputs.sha }}" \
+            --body "This PR replaces pipelineflow2 code with that from pipelineflow, including submodules. SHA: ${{ steps.vars.outputs.sha }}" \
             --base main \
             --head Flow2-overwrite-${{ steps.vars.outputs.sha }} \
             --label "automated-sync"
