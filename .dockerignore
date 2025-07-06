@@ -1,0 +1,31 @@
+# Version control
+.git
+.gitignore
+
+# Node dependencies
+node_modules/
+
+# PHP dependencies (we’ll install them in the container)
+vendor/
+
+# Composer files you don't want in production image
+composer.lock
+
+# Local env files (keep secrets out of the image)
+.env
+
+# Tests and configs not needed at runtime
+tests/
+coverage/
+phpunit.xml
+psalm.xml
+
+# Docker-specific
+Dockerfile
+docker-compose.yml
+
+# Editor junk
+*.swp
+*.swo
+.vscode/
+.idea/

@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2020-2024 LibreCode coop and contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+.idea
+.vscode
+.env
+.secrets
+*.iml
+/vendor/
+/vendor-bin/**/vendor/
+/tests/integration/vendor
+/tests/integration/output
+/js/
+/build/
+node_modules/
+/.php-cs-fixer.cache
+.phpunit.result.cache
+*.phar
+/src/__test__/coverage
+/appinfo/install-*.json

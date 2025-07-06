@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2020-2024 LibreCode coop and contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+default:
+  autoload:
+    '': '%paths.base%/../features/bootstrap'
+  suites:
+    default:
+      contexts:
+        - rpkamp\Behat\MailhogExtension\Context\MailhogContext
+        - FeatureContext
+      paths:
+        - '%paths.base%/../features'
+
+  extensions:
+    rpkamp\Behat\MailhogExtension:
+      base_url: http://mailhog:8025
+    PhpBuiltin\Server:
+      runAs: www-data
+      workers: 10
+    jarnaiz\JUnitFormatter\JUnitFormatterExtension:
+      filename: report.xml
+      outputDir: '%paths.base%/../output/'

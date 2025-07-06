@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2020-2024 LibreCode coop and contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+categories:
+  - title: '🚀 Features'
+    label: 'feature'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: patch
+template: |
+  ## What’s Changed
+
+  $CHANGES

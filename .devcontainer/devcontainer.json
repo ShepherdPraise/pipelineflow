@@ -1,0 +1,77 @@
+{
+	"name": "LibreSign",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "nextcloud",
+	"forwardPorts": [
+		80,
+		8025
+	],
+	"containerEnv": {
+		"XDEBUG_MODE": "debug",
+		"XDEBUG_CONFIG": "client_host=127.0.0.1 client_port=9003 start_with_request=yes"
+	},
+	"customizations": {
+		"codespaces": {
+			"openFiles": [
+				".devcontainer/README.md"
+			]
+		},
+		"vscode": {
+			"extensions": [
+				"MehediDracula.php-namespace-resolver",
+				"bmewburn.vscode-intelephense-client",
+				"neilbrayfield.php-docblocker",
+				"eamodio.gitlens",
+				"EditorConfig.EditorConfig",
+				"oderwat.indent-rainbow",
+				"PKief.material-icon-theme",
+				"davidnussio.vscode-jq-playground",
+				"xdebug.php-debug",
+				"Vue.volar"
+			],
+			"settings": {
+				"php.suggest.basic": false,
+				"git.alwaysSignOff": true,
+				"editor.renderWhitespace": "all",
+				"editor.rulers": [
+					80,
+					120
+				],
+				"gitlens.showWelcomeOnInstall": false,
+				"telemetry.telemetryLevel": "off",
+				"intelephense.telemetry.enabled": false,
+				"intelephense.environment.includePaths": [
+					"apps-extra"
+				],
+				"git.scanRepositories": [
+					"/apps-extra/libresign"
+				]
+			}
+		}
+	},
+	"workspaceFolder": "/var/www/html",
+	"overrideCommand": true,
+	"postAttachCommand": "bash /var/www/html/apps-extra/libresign/.devcontainer/setup.sh",
+	"portsAttributes": {
+		"80": {
+			"label": "http",
+			"protocol": "http",
+			"onAutoForward": "openBrowser",
+			"elevateIfNeeded": true
+		},
+		"8025": {
+			"label": "mailhog",
+			"protocol": "http",
+			"onAutoForward": "notify",
+			"elevateIfNeeded": true
+		},
+		"9000": {
+			"label": "php-fpm",
+			"onAutoForward": "ignore"
+		},
+		"9003": {
+			"label": "xdebug",
+			"onAutoForward": "ignore"
+		}
+	}
+}
